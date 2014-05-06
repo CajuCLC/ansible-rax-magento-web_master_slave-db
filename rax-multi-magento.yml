@@ -1,0 +1,188 @@
+# Ansible playbook to create a Rackspace Cloud Server
+#
+# The playbook creates a new server and installs some packages
+#
+# It injects 2 files in to the new instance:
+# * SSH key to be used later, when installing packages
+# * A demo test.txt file
+#
+# Run with: ansible-playbook -i hosts.yml rax-multi-magento.yml -vvv
+---
+- name: Build environment
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  tasks:
+    - name: Load Balancer create request
+      local_action:
+        module: rax_clb
+        credentials: rax.py
+        name: lsyncd-magento
+        port: 80
+        protocol: HTTP
+        algorithm: LEAST_CONNECTIONS
+        type: PUBLIC
+        timeout: 30
+        region: DFW
+        wait: yes
+        state: present
+        meta:
+          app: my-magento
+      register: clb
+
+    - name: DB Server create request
+      local_action:
+        module: rax
+        credentials: rax.py
+        name: lsyncd-magento-db
+        flavor: performance1-2
+        image: 41e59c5f-530b-423c-86ec-13b23de49288
+        disk_config: manual
+        networks:
+          - public
+          - private
+        region: DFW
+        state: present
+        group: db
+        wait: yes
+      register: rax
+
+    - name: Add servers to DB host group
+      local_action:
+        module: add_host
+        hostname: "{{ item.name }}"
+        ansible_ssh_host: "{{ item.rax_accessipv4 }}"
+        ansible_ssh_pass: "{{ item.rax_adminpass }}"
+        ansible_ssh_user: root
+        groupname: db
+      with_items: rax.success
+      when: rax.action == 'create'
+
+    - name: MASTER WEB Server create request
+      local_action:
+        module: rax
+        credentials: rax.py
+        name: lsyncd-magento-master
+        flavor: performance1-2
+        image: 41e59c5f-530b-423c-86ec-13b23de49288
+        disk_config: manual
+        networks:
+          - public
+          - private
+        region: DFW
+        state: present
+        count: 1
+        group: master
+        wait: yes
+      register: rax
+
+    - name: Add servers to MASTER web host group
+      local_action:
+        module: add_host
+        hostname: "{{ item.name }}"
+        ansible_ssh_host: "{{ item.rax_accessipv4 }}"
+        ansible_ssh_pass: "{{ item.rax_adminpass }}"
+        ansible_ssh_user: root
+        groupname: master
+      with_items: rax.success
+      when: rax.action == 'create'
+
+    - name: Wait few seconds before connection
+      wait_for: port=22 delay=20
+
+    - name: Add server MASTER to Load balancer
+      local_action:
+        module: rax_clb_nodes
+        credentials: rax.py
+        load_balancer_id: "{{ clb.balancer.id }}"
+        address: "{{ item.rax_networks.private|first }}"
+        port: 80
+        condition: enabled
+        type: primary
+        wait: yes
+        region: DFW
+      with_items: rax.success
+      when: rax.action == 'create'
+
+    - name: SLAVE WEB Server create request
+      local_action:
+        module: rax
+        credentials: rax.py
+        name: lsyncd-magento-slave
+        flavor: performance1-2
+        image: 41e59c5f-530b-423c-86ec-13b23de49288
+        disk_config: manual
+        networks:
+          - public
+          - private
+        region: DFW
+        state: present
+        count: 3
+        group: slave
+        wait: yes
+      register: rax
+
+    - name: Add servers to SLAVE web host group
+      local_action:
+        module: add_host
+        hostname: "{{ item.name }}"
+        ansible_ssh_host: "{{ item.rax_accessipv4 }}"
+        ansible_ssh_pass: "{{ item.rax_adminpass }}"
+        ansible_ssh_user: root
+        groupname: slave
+      with_items: rax.success
+      when: rax.action == 'create'
+
+    - name: Wait few seconds before connection
+      wait_for: port=22 delay=20
+
+    - name: Add server SLAVE to Load balancer
+      local_action:
+        module: rax_clb_nodes
+        credentials: rax.py
+        load_balancer_id: "{{ clb.balancer.id }}"
+        address: "{{ item.rax_networks.private|first }}"
+        port: 80
+        condition: enabled
+        type: primary
+        wait: yes
+        region: DFW
+      with_items: rax.success
+      when: rax.action == 'create'
+
+- name: Install Common
+  hosts: all
+
+  roles:
+    - common
+
+- name: Install MySQL
+  hosts: db
+
+  roles:
+    - mysql
+
+- name: Install magento, httpd, PHP and Varnish
+  hosts: master
+
+  roles:
+    - httpd
+    - php
+    - sshkey
+    - varnishmaster
+
+- name: Install httpd, PHP and Varnish SLAVE WEB
+  hosts: slave
+
+  roles:
+    - httpd
+    - php
+    - varnishslave
+    - lsyncdslave
+
+- name: Install magento, httpd, PHP and Varnish
+  hosts: master
+
+  roles:
+    - magento
+    - lsyncd

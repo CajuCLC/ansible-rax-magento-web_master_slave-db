@@ -1,0 +1,14 @@
+---
+    - name: Add servers to Load balancer
+      local_action:
+        module: rax_clb_nodes
+        credentials: rax.py
+        load_balancer_id: "{{ clb.balancer.id }}"
+        address: "{{ hostvars[item]['ansible_eth1']['ipv4']['address'] }}"
+        port: 80
+        condition: enabled
+        type: primary
+        wait: yes
+        region: DFW
+      with_items: groups ['master']
+      # when: rax.action == 'create'

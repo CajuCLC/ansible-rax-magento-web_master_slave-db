@@ -1,0 +1,6 @@
+---
+- name: Create SSH Key
+  shell: ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
+
+- name: Fetch file
+  fetch: src=~/.ssh/id_rsa.pub dest=/tmp/fetched/ flat=yes

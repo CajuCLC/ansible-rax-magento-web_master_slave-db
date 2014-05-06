@@ -1,0 +1,37 @@
+---
+- name: Install Mysql package
+  yum: name={{ item }} state=present
+  with_items:
+   - mysql-server
+   - MySQL-python
+   - libselinux-python
+   - libsemanage-python
+
+- name: Create Mysql configuration file
+  template: src=my.cnf.j2 dest=/etc/my.cnf
+  notify: 
+  - restart mysql
+
+- name: Start Mysql Service
+  service: name=mysqld state=started enabled=true
+
+- name: Create Folder
+  command: mkdir -p /var/www/mage_sample/
+  
+- name: Download Sample
+  get_url: url=http://www.magentocommerce.com/downloads/assets/1.6.1.0/magento-sample-data-1.6.1.0.tar.gz dest=/var/www/mage_sample/magento-sample-data-1.6.1.0.tar.gz
+
+- name: Extract Sample
+  command: chdir=/var/www/mage_sample/ /bin/tar xvf magento-sample-data-1.6.1.0.tar.gz
+  
+- name: Create magento database
+  mysql_db: name={{ magento_db_name }} state=present
+
+- name: Create magento database user
+  mysql_user: name={{ magento_db_user }} password={{ magento_db_password }} priv={{ magento_db_name }}.*:ALL host='%' state=present
+  
+- name: Create magento database user
+  mysql_user: name={{ magento_db_user }} password={{ magento_db_password }} priv={{ magento_db_name }}.*:ALL host='localhost' state=present
+  
+- name: Import Sample
+  shell: chdir=/var/www/mage_sample/magento-sample-data-1.6.1.0/ mysql -u {{ magento_db_user }} -p{{ magento_db_password }} {{ magento_db_name }} < magento_sample_data_for_1.6.1.0.sql

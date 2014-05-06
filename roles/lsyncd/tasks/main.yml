@@ -1,0 +1,22 @@
+---
+- name: Install lsyncd
+  yum: name={{ item }} state=present
+  with_items:
+    - lsyncd
+    - lua
+    - lua-devel
+    - pkgconfig
+    - gcc
+    - asciidoc
+
+- name: Delete Main Config
+  shell: rm -f /etc/lsyncd.conf
+
+- name: Copy lsyncd configuration for server
+  template: src=lsyncd.j2 dest=/etc/lsyncd.conf
+
+- name: chkconfig lsyncd
+  service: name=lsyncd state=started enabled=yes
+
+- name: restart lsyncd
+  service: name=lsyncd state=restarted
