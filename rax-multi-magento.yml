@@ -23,7 +23,7 @@
         algorithm: LEAST_CONNECTIONS
         type: PUBLIC
         timeout: 30
-        region: DFW
+        region: IAD
         wait: yes
         state: present
         meta:
@@ -41,7 +41,7 @@
         networks:
           - public
           - private
-        region: DFW
+        region: IAD
         state: present
         group: db
         wait: yes
@@ -69,7 +69,7 @@
         networks:
           - public
           - private
-        region: DFW
+        region: IAD
         state: present
         count: 1
         group: master
@@ -100,7 +100,7 @@
         condition: enabled
         type: primary
         wait: yes
-        region: DFW
+        region: IAD
       with_items: rax.success
       when: rax.action == 'create'
 
@@ -115,9 +115,9 @@
         networks:
           - public
           - private
-        region: DFW
+        region: IAD
         state: present
-        count: 3
+        count: 1
         group: slave
         wait: yes
       register: rax
@@ -146,7 +146,7 @@
         condition: enabled
         type: primary
         wait: yes
-        region: DFW
+        region: IAD
       with_items: rax.success
       when: rax.action == 'create'
 
@@ -160,7 +160,8 @@
   hosts: db
 
   roles:
-    - mysql
+    - { role: mysql, when: db_choice == 'mysql' }
+    - { role: percona, when: db_choice == 'percona' }
 
 - name: Install magento, httpd, PHP and Varnish
   hosts: master
@@ -169,7 +170,7 @@
     - httpd
     - php
     - sshkey
-    - varnishmaster
+    - { role: varnishmaster, when: varnish_install == 'install' }
 
 - name: Install httpd, PHP and Varnish SLAVE WEB
   hosts: slave
@@ -177,12 +178,12 @@
   roles:
     - httpd
     - php
-    - varnishslave
+    - { role: varnishslave, when: varnish_install == 'install' }
     - lsyncdslave
 
 - name: Install magento, httpd, PHP and Varnish
   hosts: master
 
   roles:
-    - magento
+    - { role: magento, when: magento_install == 'install' }
     - lsyncd

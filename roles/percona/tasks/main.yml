@@ -13,21 +13,27 @@
   set_fact: sample_version="1.9.0.0"
   when: "{{ magento_version | version_compare('1.9.0.0', '>=') }}"
 
-- name: Install Mysql package
+- name: Install Repository For Percona
+  shell: rpm -Uhv http://www.percona.com/downloads/percona-release/percona-release-0.0-1.x86_64.rpm
+
+- name: Install Percona package
   yum: name={{ item }} state=present
   with_items:
-   - mysql-server
-   - MySQL-python
    - libselinux-python
    - libsemanage-python
+   - Percona-Server-shared-compat.x86_64
+   - Percona-Server-client-55.x86_64
+   - Percona-Server-server-55.x86_64
+   - Percona-Server-shared-55.x86_64
+   - MySQL-python
 
-- name: Create Mysql configuration file
+- name: Create Percona configuration file
   template: src=my.cnf.j2 dest=/etc/my.cnf
   notify: 
   - restart mysql
 
-- name: Start Mysql Service
-  service: name=mysqld state=started enabled=true
+- name: Start Percona Service
+  service: name=mysql state=started enabled=true
 
 - name: Create Folder
   command: mkdir -p /var/www/mage_sample/
