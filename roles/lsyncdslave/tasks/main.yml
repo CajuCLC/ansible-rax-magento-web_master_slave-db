@@ -11,5 +11,8 @@
 - name: Create Folder
   command: mkdir -p /var/www/vhosts/{{ server_hostname }}/
 
+- name: Add user "web_user"
+  user: name={{ web_user }} group=apache home=/var/www/vhosts/{{ server_hostname }}
+
 - name: Change ownership of magento to user created and group apache
   file: path=/var/www/vhosts/{{ server_hostname }}/ owner={{ web_user }} group=apache state=directory recurse=yes
